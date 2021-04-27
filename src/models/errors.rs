@@ -1,8 +1,9 @@
 use std::fmt;
+use std::fmt::Formatter;
 
 use crate::convert_error;
 
-#[derive(Clone, Debug)]
+#[derive(Eq, PartialEq)]
 pub struct LeagueHelperError {
     pub message: String,
 }
@@ -10,6 +11,12 @@ pub struct LeagueHelperError {
 impl fmt::Display for LeagueHelperError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.message)
+    }
+}
+
+impl fmt::Debug for LeagueHelperError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        std::fmt::Display::fmt(self, f)
     }
 }
 
@@ -29,6 +36,7 @@ convert_error!(json::Error);
 convert_error!(regex::Error);
 convert_error!(std::num::ParseIntError);
 convert_error!(std::io::Error);
+convert_error!(lcu_driver::errors::LcuDriverError);
 
 #[macro_export]
 macro_rules! convert_error {

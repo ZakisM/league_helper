@@ -1,6 +1,9 @@
 use std::path::Path;
 
 use futures::stream::{self, StreamExt};
+use lcu_driver::models::lcu_process::LcuProcess;
+use lcu_driver::models::lockfile::Lockfile;
+use lcu_driver::LcuDriver;
 use tokio::io::AsyncWriteExt;
 
 use crate::models::ddragon_champions::Champion;
@@ -14,19 +17,32 @@ mod models;
 
 type Result<T> = std::result::Result<T, LeagueHelperError>;
 
-#[cfg(windows)]
-const DEFAULT_BUILD_DIR: &str = "C:\\Riot Games\\League of Legends\\Config\\Champions";
-
-#[cfg(mac)]
-const DEFAULT_BUILD_DIR: &str = "C:/Riot Games/League of Legends/Config/Champions";
-
 #[tokio::main]
 async fn main() -> Result<()> {
-    let builds_path = Path::new(DEFAULT_BUILD_DIR);
+    let lcu_process = LcuProcess::spawn().await?;
+
+    let league_install_dir = Path::new(
+        lcu_process
+            .get_argument_value("install-directory=")
+            .ok_or_else(|| LeagueHelperError::new("Failed to find League install directory"))?,
+    );
+
+    let builds_path = league_install_dir.join("Config").join("Champions");
+    let builds_path = builds_path.as_path();
 
     if !builds_path.exists() {
         return Err(LeagueHelperError::new("Builds path does not exist"));
     }
+
+    let lockfile = Lockfile::load(league_install_dir.join("lockfile")).await?;
+
+    let lcu_driver = LcuDriver::new(lcu_process, lockfile)?;
+
+    dbg!(&lcu_driver);
+
+    let summoner = lcu_driver.get_current_summoner().await?;
+
+    println!("{}", summoner);
 
     let ddragon = DDragonUpdater::new().await?;
     let ugg_client = UggClient::new().await?;
@@ -36,9 +52,10 @@ async fn main() -> Result<()> {
         .replace(".", "_")
         .starts_with(&ugg_client.patch_version)
     {
-        return Err(LeagueHelperError::new(
-            "Ugg data is not up to date with latest patch version.",
-        ));
+        // return Err(LeagueHelperError::new(format!(
+        //     "Ugg data is not up to date with latest patch version. (Ugg: {}) (League: {})",
+        //     ugg_client.patch_version, ddragon.version
+        // )));
     }
 
     let champion_data = ddragon.download_latest_champions().await?;
@@ -113,6 +130,10 @@ async fn save_build_data(
         "Downloaded build for: {} [{}].",
         champion.name, build_data.position
     );
+
+    dbg!(build_data);
+
+    panic!();
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-const UGG_URL: &str = "https://u.gg/";
+const UGG_URL: &str = "https://u.gg";
 
 pub enum UggEndpoint<'a> {
     HomePage,
