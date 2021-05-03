@@ -1,16 +1,12 @@
-use std::path::Path;
+use std::str::FromStr;
+use std::time::Duration;
 
-use futures::stream::{self, StreamExt};
-use lcu_driver::models::lcu_process::LcuProcess;
-use lcu_driver::models::lockfile::Lockfile;
 use lcu_driver::LcuDriver;
-use tokio::io::AsyncWriteExt;
 
-use crate::models::ddragon_champions::Champion;
 use crate::models::ddragon_updater::DDragonUpdater;
 use crate::models::errors::LeagueHelperError;
-use crate::models::league_item_set::LeagueItemSet;
-use crate::models::ugg_client::{BuildData, UggClient};
+use crate::models::ugg::position::Position;
+use crate::models::ugg::ugg_build_data::UggBuildData;
 
 mod endpoints;
 mod models;
@@ -19,121 +15,49 @@ type Result<T> = std::result::Result<T, LeagueHelperError>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let lcu_process = LcuProcess::spawn().await?;
+    let ddragon = DDragonUpdater::new().await?;
 
-    let league_install_dir = Path::new(
-        lcu_process
-            .get_argument_value("install-directory=")
-            .ok_or_else(|| LeagueHelperError::new("Failed to find League install directory"))?,
-    );
+    let ugg_build_data = UggBuildData::load(&ddragon).await?;
 
-    let builds_path = league_install_dir.join("Config").join("Champions");
-    let builds_path = builds_path.as_path();
+    let lcu_driver = LcuDriver::connect_wait().await;
+
+    let builds_path = lcu_driver
+        .league_install_dir()
+        .await
+        .join("Config")
+        .join("Champions");
 
     if !builds_path.exists() {
         return Err(LeagueHelperError::new("Builds path does not exist"));
     }
 
-    let lockfile = Lockfile::load(league_install_dir.join("lockfile")).await?;
+    ugg_build_data.save_item_builds(&builds_path).await?;
 
-    let lcu_driver = LcuDriver::new(lcu_process, lockfile)?;
+    let my_summoner = lcu_driver.get_current_summoner().await?;
 
-    dbg!(&lcu_driver);
+    loop {
+        match lcu_driver.get_champ_select_session().await {
+            Ok(champ_select_session) => {
+                let my_player_selection = champ_select_session
+                    .my_team
+                    .iter()
+                    .find(|p| p.summoner_id == my_summoner.summoner_id);
 
-    let summoner = lcu_driver.get_current_summoner().await?;
+                if let Some(my_player_selection) = my_player_selection {
+                    let position = Position::from_str(&my_player_selection.assigned_position).ok();
+                    let perks_page =
+                        ugg_build_data.get_perks_page(my_player_selection.champion_id, position);
 
-    println!("{}", summoner);
-
-    let ddragon = DDragonUpdater::new().await?;
-    let ugg_client = UggClient::new().await?;
-
-    if !ddragon
-        .version
-        .replace(".", "_")
-        .starts_with(&ugg_client.patch_version)
-    {
-        // return Err(LeagueHelperError::new(format!(
-        //     "Ugg data is not up to date with latest patch version. (Ugg: {}) (League: {})",
-        //     ugg_client.patch_version, ddragon.version
-        // )));
-    }
-
-    let champion_data = ddragon.download_latest_champions().await?;
-
-    let job = stream::iter(champion_data.champion_list)
-        .map(|champion| async {
-            let build_data = ugg_client.get_champion_data(champion.key).await;
-            (champion, build_data, &ugg_client.patch_version)
-        })
-        .buffer_unordered(5);
-
-    let task = job.for_each_concurrent(5, |(champion, build_data, patch_version)| async move {
-        match build_data {
-            Ok(build_data) => {
-                for build in build_data {
-                    match build {
-                        Ok(build_data) => {
-                            if let Err(e) =
-                                save_build_data(&champion, build_data, builds_path, patch_version)
-                                    .await
-                            {
-                                eprintln!("{}", e);
-                            }
+                    if let Some(perks_page) = perks_page {
+                        if let Err(e) = lcu_driver.set_perks_page(&perks_page).await {
+                            eprintln!("{}", e);
                         }
-                        Err(e) => eprintln!("{}", e),
                     }
                 }
             }
             Err(e) => eprintln!("{}", e),
         }
-    });
 
-    task.await;
-
-    Ok(())
-}
-
-async fn save_build_data(
-    champion: &Champion,
-    mut build_data: BuildData,
-    builds_path: &Path,
-    patch_version: &str,
-) -> Result<()> {
-    if let Some(starting_build) = build_data.item_sets.get_mut(0) {
-        starting_build
-            .name
-            .push_str(&format!(" [Skill Order: {}]", build_data.skill_order));
+        tokio::time::sleep(Duration::from_millis(2500)).await;
     }
-
-    let league_item_set = LeagueItemSet::from_build_data(&mut build_data, &champion);
-
-    let league_item_set_json = serde_json::to_vec_pretty(&league_item_set)?;
-
-    let build_file_path = builds_path.join(&champion.id).join("Recommended");
-
-    if !build_file_path.exists() {
-        tokio::fs::create_dir_all(&build_file_path).await?;
-    }
-
-    let mut build_file = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(build_file_path.join(format!(
-            "{}-{}-{}.json",
-            &champion.id, &build_data.position, patch_version
-        )))
-        .await?;
-
-    build_file.write_all(&league_item_set_json).await?;
-
-    println!(
-        "Downloaded build for: {} [{}].",
-        champion.name, build_data.position
-    );
-
-    dbg!(build_data);
-
-    panic!();
-
-    Ok(())
 }

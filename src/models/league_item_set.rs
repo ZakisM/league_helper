@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::models::ddragon_champions::Champion;
-use crate::models::ugg_client::{BuildData, ItemSet};
+use crate::models::ugg::build_data::BuildData;
+use crate::models::ugg::item_set::ItemSet;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -87,8 +88,8 @@ pub struct Item {
     pub count: i64,
 }
 
-impl From<&usize> for Item {
-    fn from(item_id: &usize) -> Self {
+impl From<&isize> for Item {
+    fn from(item_id: &isize) -> Self {
         Self {
             id: item_id.to_string(),
             count: 1,

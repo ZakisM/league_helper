@@ -3,6 +3,7 @@ use serde::de::DeserializeOwned;
 
 use crate::endpoints::ddragon::DDragonEndpoint;
 use crate::models::ddragon_champions::ChampionData;
+use crate::models::ddragon_runes_reforged::{RuneData, RunesData};
 use crate::Result;
 
 #[derive(Debug)]
@@ -36,6 +37,16 @@ impl DDragonUpdater {
             .await?;
 
         data.champion_list.sort_by(|a, b| a.id.cmp(&b.id));
+
+        Ok(data)
+    }
+
+    pub async fn download_latest_runes(&self) -> Result<RunesData> {
+        let data: Vec<RuneData> = self
+            .call_endpoint(&DDragonEndpoint::RunesData(&self.version))
+            .await?;
+
+        let data = RunesData { runes_data: data };
 
         Ok(data)
     }
