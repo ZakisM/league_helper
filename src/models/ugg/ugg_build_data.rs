@@ -135,7 +135,7 @@ impl UggBuildData {
                     .write(true)
                     .create(true)
                     .open(build_file_path.join(format!(
-                        "{}-{}-{}.json",
+                        "LH_{}-{}-{}.json",
                         &champion.id, &build_data.position, self.patch_version
                     )))
                     .await?;

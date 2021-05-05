@@ -1,16 +1,24 @@
 use std::fmt;
 use std::fmt::Formatter;
 
+use lcu_driver::errors::LcuDriverError;
+
 use crate::convert_error;
 
 #[derive(Eq, PartialEq)]
-pub struct LeagueHelperError {
-    pub message: String,
+pub enum LeagueHelperError {
+    DriverError(LcuDriverError),
+    Other(String),
 }
 
 impl fmt::Display for LeagueHelperError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.message)
+        let message = match self {
+            LeagueHelperError::DriverError(e) => return e.fmt(f),
+            LeagueHelperError::Other(e) => e,
+        };
+
+        write!(f, "{}", message)
     }
 }
 
@@ -22,13 +30,17 @@ impl fmt::Debug for LeagueHelperError {
 
 impl LeagueHelperError {
     pub fn new<S: AsRef<str>>(message: S) -> Self {
-        Self {
-            message: message.as_ref().to_string(),
-        }
+        Self::Other(message.as_ref().to_string())
     }
 }
 
 impl std::error::Error for LeagueHelperError {}
+
+impl From<LcuDriverError> for LeagueHelperError {
+    fn from(lcu_err: LcuDriverError) -> Self {
+        LeagueHelperError::DriverError(lcu_err)
+    }
+}
 
 convert_error!(reqwest::Error);
 convert_error!(serde_json::Error);
@@ -36,7 +48,6 @@ convert_error!(json::Error);
 convert_error!(regex::Error);
 convert_error!(std::num::ParseIntError);
 convert_error!(std::io::Error);
-convert_error!(lcu_driver::errors::LcuDriverError);
 
 #[macro_export]
 macro_rules! convert_error {

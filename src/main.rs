@@ -2,6 +2,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use lcu_driver::endpoints::summoner::Summoner;
+use lcu_driver::errors::LcuDriverError;
+use lcu_driver::models::api_error::LcuApiError;
 use lcu_driver::{Initialized, LcuDriver};
 
 use crate::models::ddragon_updater::DDragonUpdater;
@@ -48,8 +50,12 @@ async fn main() -> Result<()> {
         )
         .await
         {
-            Ok(_) => println!("Loaded champion runes"),
+            Err(e)
+                if e == LeagueHelperError::DriverError(LcuDriverError::ApiError(
+                    LcuApiError::NoActiveDelegate,
+                )) => {}
             Err(e) => eprintln!("{}", e),
+            _ => (),
         }
 
         tokio::time::sleep(Duration::from_millis(2500)).await;
@@ -88,6 +94,11 @@ async fn load_champion_runes_and_summoners(
         .get_summoner_spells(my_player_selection.champion_id, &position)
         .ok_or_else(|| LeagueHelperError::new("Couldn't find summoner spells for this champion"))?;
 
+    let new_summoner_spells = new_summoner_spells.to_my_selection(
+        my_player_selection.selected_skin_id,
+        my_player_selection.ward_skin_id,
+    );
+
     let curr_runes_pages = lcu_driver.get_perks_pages().await?.pages;
 
     //Delete any [LH] pages set previously
@@ -119,7 +130,7 @@ async fn load_champion_runes_and_summoners(
 
     lcu_driver.set_perks_page(&new_runes_page).await?;
     lcu_driver
-        .set_session_my_selection(&new_summoner_spells.into())
+        .set_session_my_selection(&new_summoner_spells)
         .await?;
 
     *previous_champion_id = my_player_selection.champion_id;

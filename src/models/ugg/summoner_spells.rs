@@ -7,12 +7,13 @@ pub struct SummonerSpells {
     pub second: isize,
 }
 
-impl From<&SummonerSpells> for MySelection {
-    fn from(ss: &SummonerSpells) -> Self {
-        Self {
-            spell_1_id: ss.first,
-            spell_2_id: ss.second,
-            ..Self::default()
+impl SummonerSpells {
+    pub fn to_my_selection(&self, selected_skin_id: isize, ward_skin_id: isize) -> MySelection {
+        MySelection {
+            selected_skin_id,
+            spell_1_id: self.first,
+            spell_2_id: self.second,
+            ward_skin_id,
         }
     }
 }
