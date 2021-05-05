@@ -5,6 +5,7 @@ use crate::models::errors::LeagueHelperError;
 use crate::models::ugg::item_set::ItemSet;
 use crate::models::ugg::rune_page::RunePage;
 use crate::models::ugg::summoner_spells::SummonerSpells;
+use crate::util::calc_win_rate;
 use crate::Result;
 
 #[derive(Debug)]
@@ -71,30 +72,6 @@ impl<'a> UggRoleData<'a> {
             }
         }
 
-        //find valid primary tree runes
-        // for slot in valid_primary_tree_runes {
-        //     let rune = slot
-        //         .runes
-        //         .iter()
-        //         .map(|r| r.id)
-        //         .find(|r| unsorted_runes.contains(&r))
-        //         .ok_or_else(|| LeagueHelperError::new("Ugg rune is not a valid league rune"))?;
-        //
-        //     runes.push(rune);
-        // }
-        //
-        // //find valid secondary tree runes
-        // for slot in valid_secondary_tree_runes.iter().skip(1) {
-        //     if let Some(rune) = slot
-        //         .runes
-        //         .iter()
-        //         .map(|r| r.id)
-        //         .find(|r| unsorted_runes.contains(&r))
-        //     {
-        //         runes.push(rune);
-        //     }
-        // }
-
         let mut stat_shards = data[0][8][2]
             .members()
             .map(|v| {
@@ -112,10 +89,22 @@ impl<'a> UggRoleData<'a> {
             ));
         }
 
+        // Rune page win rate
+        let games_played = data[0][0][0]
+            .as_isize()
+            .ok_or_else(|| LeagueHelperError::new("Failed to read runes games played"))?;
+
+        let games_won = data[0][0][1]
+            .as_isize()
+            .ok_or_else(|| LeagueHelperError::new("Failed to read runes games won"))?;
+
+        let win_rate = calc_win_rate(games_won as f32, games_played as f32);
+
         Ok(RunePage {
             runes,
             primary_tree,
             secondary_tree,
+            win_rate,
         })
     }
 

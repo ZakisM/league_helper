@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -54,6 +55,26 @@ pub struct Champion {
     pub tags: Vec<String>,
     pub partype: String,
     pub stats: Stats,
+}
+
+impl std::cmp::Eq for Champion {}
+
+impl std::cmp::PartialEq for Champion {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl std::cmp::Ord for Champion {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key.cmp(&other.key)
+    }
+}
+
+impl std::cmp::PartialOrd for Champion {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq)]

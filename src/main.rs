@@ -11,6 +11,7 @@ use crate::models::ugg::ugg_build_data::UggBuildData;
 
 mod endpoints;
 mod models;
+mod util;
 
 type Result<T> = std::result::Result<T, LeagueHelperError>;
 
@@ -39,7 +40,7 @@ async fn main() -> Result<()> {
     let mut previous_champion_id = -1;
 
     loop {
-        match load_champion_runes(
+        match load_champion_runes_and_summoners(
             &lcu_driver,
             &ugg_build_data,
             &my_summoner,
@@ -55,7 +56,7 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn load_champion_runes(
+async fn load_champion_runes_and_summoners(
     lcu_driver: &LcuDriver<Initialized>,
     ugg_build_data: &UggBuildData,
     my_summoner: &Summoner,
@@ -69,52 +70,59 @@ async fn load_champion_runes(
         .find(|p| p.summoner_id == my_summoner.summoner_id)
         .ok_or_else(|| LeagueHelperError::new("Couldn't find current player selection"))?;
 
-    // Pick a champion first...
-    if my_player_selection.champion_id == 0 {
-        return Ok(());
-    }
-
-    // Don't set the same page twice
-    if my_player_selection.champion_id == *previous_champion_id {
+    /* Must pick a champion first and
+    don't set the same page twice */
+    if my_player_selection.champion_id == 0
+        || my_player_selection.champion_id == *previous_champion_id
+    {
         return Ok(());
     }
 
     let position = Position::from_str(&my_player_selection.assigned_position).ok();
 
-    let new_perks_page = ugg_build_data
-        .get_perks_page(my_player_selection.champion_id, position)
+    let new_runes_page = ugg_build_data
+        .get_perks_page(my_player_selection.champion_id, &position)
         .ok_or_else(|| LeagueHelperError::new("Couldn't find a rune page for this champion"))?;
 
-    // delete page if space is required
-    let current_perks_pages = lcu_driver
-        .get_perks_pages()
-        .await?
-        .pages
-        .into_iter()
-        .filter(|p| p.is_deletable)
-        .collect::<Vec<_>>();
+    let new_summoner_spells = ugg_build_data
+        .get_summoner_spells(my_player_selection.champion_id, &position)
+        .ok_or_else(|| LeagueHelperError::new("Couldn't find summoner spells for this champion"))?;
+
+    let curr_runes_pages = lcu_driver.get_perks_pages().await?.pages;
+
+    //Delete any [LH] pages set previously
+    let pages_to_delete = curr_runes_pages
+        .iter()
+        .filter(|p| p.name.starts_with("[LH]") && p.is_deletable);
+
+    for page in pages_to_delete {
+        lcu_driver.delete_perks_page(page.id).await?;
+    }
 
     let perks_inventory = lcu_driver.get_perks_inventory().await?;
 
-    if !current_perks_pages.contains(&new_perks_page) {
-        if current_perks_pages.len() as isize == perks_inventory.owned_page_count {
-            println!("Deleting rune page so we can create another one");
+    // Delete page if space is required
+    if curr_runes_pages.len() as isize == perks_inventory.owned_page_count {
+        println!("Deleting rune page so we can create another one");
 
-            //Delete previous page we created or else delete first page
-            let page_to_delete = current_perks_pages
+        //Delete previous page we created or else delete first page
+        let page_to_delete =
+            curr_runes_pages
                 .iter()
                 .find(|p| p.name.starts_with("[LH]"))
-                .unwrap_or(current_perks_pages.first().ok_or_else(|| {
+                .unwrap_or(curr_runes_pages.first().ok_or_else(|| {
                     LeagueHelperError::new("Couldn't find a rune page to delete")
                 })?);
 
-            lcu_driver.delete_perks_page(page_to_delete.id).await?;
-        }
-
-        lcu_driver.set_perks_page(&new_perks_page).await?;
-
-        *previous_champion_id = my_player_selection.champion_id;
+        lcu_driver.delete_perks_page(page_to_delete.id).await?;
     }
+
+    lcu_driver.set_perks_page(&new_runes_page).await?;
+    lcu_driver
+        .set_session_my_selection(&new_summoner_spells.into())
+        .await?;
+
+    *previous_champion_id = my_player_selection.champion_id;
 
     Ok(())
 }

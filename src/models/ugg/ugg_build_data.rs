@@ -10,6 +10,7 @@ use crate::models::ddragon_updater::DDragonUpdater;
 use crate::models::league_item_set::LeagueItemSet;
 use crate::models::ugg::build_data::BuildData;
 use crate::models::ugg::position::Position;
+use crate::models::ugg::summoner_spells::SummonerSpells;
 use crate::models::ugg::ugg_client::UggClient;
 use crate::Result;
 
@@ -59,11 +60,14 @@ impl UggBuildData {
                         }
                     }
 
+                    curr_builds.sort();
                     builds.push((champion, curr_builds));
                 }
                 Err(e) => eprintln!("{}", e),
             }
         }
+
+        builds.sort();
 
         let ugg_build_data = UggBuildData {
             patch_version: ugg_client.patch_version.clone(),
@@ -151,27 +155,46 @@ impl UggBuildData {
     pub fn get_perks_page(
         &self,
         champion_key: isize,
-        position: Option<Position>,
+        position: &Option<Position>,
     ) -> Option<PerksPage> {
-        //TODO: Default position based off games played/same as default used on U.gg
-        //TODO: Auto import summoner spells
-        //TODO: Ryze doesn't import runes? - Because a page already existed for him, delete all [LH] Pages on startup
-        let position = position.unwrap_or(Position::Mid);
+        // TODO: Delete old builds
 
         self.builds
             .iter()
             .find(|(champion, _)| champion.key == champion_key)
             .and_then(|(champion, build_data)| {
-                build_data
-                    .iter()
-                    .find(|b| b.position == position)
-                    .map(|b| PerksPage {
-                        name: format!("[LH] {} {}", champion.name, position),
-                        primary_style_id: b.rune_page.primary_tree,
-                        selected_perk_ids: b.rune_page.runes.clone(),
-                        sub_style_id: b.rune_page.secondary_tree,
-                        ..PerksPage::default()
-                    })
+                let build_data = if let Some(position) = position {
+                    build_data.iter().find(|b| b.position == *position)
+                } else {
+                    build_data.first()
+                };
+
+                build_data.map(|b| PerksPage {
+                    name: format!("[LH] {} {}", champion.name, b.position),
+                    primary_style_id: b.rune_page.primary_tree,
+                    selected_perk_ids: b.rune_page.runes.clone(),
+                    sub_style_id: b.rune_page.secondary_tree,
+                    ..PerksPage::default()
+                })
+            })
+    }
+
+    pub fn get_summoner_spells(
+        &self,
+        champion_key: isize,
+        position: &Option<Position>,
+    ) -> Option<&SummonerSpells> {
+        self.builds
+            .iter()
+            .find(|(champion, _)| champion.key == champion_key)
+            .and_then(|(_, build_data)| {
+                let build_data = if let Some(position) = position {
+                    build_data.iter().find(|b| b.position == *position)
+                } else {
+                    build_data.first()
+                };
+
+                build_data.map(|b| &b.summoner_spells)
             })
     }
 }

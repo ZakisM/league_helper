@@ -15,7 +15,8 @@ json = "0.12"
 regex = "1"
 strum = { version = "0.20", features = ["derive"] }
 futures = "0.3"
-lcu_driver = { path = "C:/Users/zakmi/IdeaProjects/lcu_driver" }
+float-ord = "0.3"
+lcu_driver = { path = "/Users/zak/Desktop/lcu_driver" }
 
 [profile.dev]
 split-debuginfo = "unpacked"
