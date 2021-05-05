@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -39,7 +38,7 @@ where
     serializer.serialize_str(&key.to_string())
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Champion {
     pub version: String,
@@ -56,20 +55,6 @@ pub struct Champion {
     pub partype: String,
     pub stats: Stats,
 }
-
-impl std::cmp::Ord for Champion {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(&other.id)
-    }
-}
-
-impl std::cmp::PartialOrd for Champion {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl std::cmp::Eq for Champion {}
 
 #[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
 #[serde(rename_all = "camelCase")]

@@ -80,7 +80,7 @@ impl UggClient {
         let data = &data[OVERVIEW_WORLD][OVERVIEW_PLAT_PLUS];
 
         let format_error = |champion_name: &str, position: &Position, e| -> LeagueHelperError {
-            LeagueHelperError::new(format!("{} [{}] - {}", champion_name, position, e))
+            LeagueHelperError::new(format!("{} {} - {}", champion_name, position, e))
         };
 
         let build_data = data

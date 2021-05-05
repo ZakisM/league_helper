@@ -139,7 +139,7 @@ impl UggBuildData {
                 build_file.write_all(&league_item_set_json).await?;
 
                 println!(
-                    "Saved build for: {} [{}].",
+                    "Saved build for: {} {}.",
                     champion.name, build_data.position
                 );
             }
@@ -153,6 +153,9 @@ impl UggBuildData {
         champion_key: isize,
         position: Option<Position>,
     ) -> Option<PerksPage> {
+        //TODO: Default position based off games played/same as default used on U.gg
+        //TODO: Auto import summoner spells
+        //TODO: Ryze doesn't import runes? - Because a page already existed for him, delete all [LH] Pages on startup
         let position = position.unwrap_or(Position::Mid);
 
         self.builds
@@ -163,7 +166,7 @@ impl UggBuildData {
                     .iter()
                     .find(|b| b.position == position)
                     .map(|b| PerksPage {
-                        name: format!("{} [{}]", champion.name, position),
+                        name: format!("[LH] {} {}", champion.name, position),
                         primary_style_id: b.rune_page.primary_tree,
                         selected_perk_ids: b.rune_page.runes.clone(),
                         sub_style_id: b.rune_page.secondary_tree,

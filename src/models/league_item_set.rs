@@ -36,7 +36,7 @@ impl<'a> Default for LeagueItemSet<'a> {
 impl<'a> LeagueItemSet<'a> {
     pub fn from_build_data(build_data: &'a mut BuildData, champion: &'a Champion) -> Self {
         Self {
-            title: format!("[{}] - {}", build_data.position, champion.name),
+            title: format!("[LH] - {} {}", champion.name, build_data.position),
             blocks: build_data.item_sets.iter().map(Block::from).collect(),
             champion_key: &champion.id,
             ..Self::default()
