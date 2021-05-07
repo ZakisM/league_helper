@@ -1,9 +1,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use lcu_driver::endpoints::gameflow::{GameFlowPhase, GameFlowSession};
 use lcu_driver::endpoints::summoner::Summoner;
-use lcu_driver::errors::LcuDriverError;
-use lcu_driver::models::api_error::LcuApiError;
 use lcu_driver::{Initialized, LcuDriver};
 
 use crate::models::ddragon_updater::DDragonUpdater;
@@ -42,20 +41,31 @@ async fn main() -> Result<()> {
     let mut previous_champion_id = -1;
 
     loop {
-        match load_champion_runes_and_summoners(
-            &lcu_driver,
-            &ugg_build_data,
-            &my_summoner,
-            &mut previous_champion_id,
-        )
-        .await
-        {
-            Err(e)
-                if e == LeagueHelperError::DriverError(LcuDriverError::ApiError(
-                    LcuApiError::NoActiveDelegate,
-                )) => {}
-            Err(e) => eprintln!("{}", e),
-            _ => (),
+        match lcu_driver.get_gameflow_session().await {
+            Ok(game_flow_session) => match &game_flow_session.phase {
+                GameFlowPhase::InProgress => {
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                    continue;
+                }
+                GameFlowPhase::ChampSelect => {
+                    if let Err(e) = load_champion_runes_and_summoners(
+                        &lcu_driver,
+                        &game_flow_session,
+                        &ugg_build_data,
+                        &my_summoner,
+                        &mut previous_champion_id,
+                    )
+                    .await
+                    {
+                        eprintln!("{}", e);
+                    }
+                }
+                _ => (),
+            },
+            Err(e) => {
+                eprintln!("{}", e);
+                previous_champion_id = -1;
+            }
         }
 
         tokio::time::sleep(Duration::from_millis(2500)).await;
@@ -64,6 +74,7 @@ async fn main() -> Result<()> {
 
 async fn load_champion_runes_and_summoners(
     lcu_driver: &LcuDriver<Initialized>,
+    game_flow_session: &GameFlowSession,
     ugg_build_data: &UggBuildData,
     my_summoner: &Summoner,
     previous_champion_id: &mut isize,
@@ -90,9 +101,24 @@ async fn load_champion_runes_and_summoners(
         .get_perks_page(my_player_selection.champion_id, &position)
         .ok_or_else(|| LeagueHelperError::new("Couldn't find a rune page for this champion"))?;
 
-    let new_summoner_spells = ugg_build_data
+    let mut new_summoner_spells = ugg_build_data
         .get_summoner_spells(my_player_selection.champion_id, &position)
-        .ok_or_else(|| LeagueHelperError::new("Couldn't find summoner spells for this champion"))?;
+        .ok_or_else(|| LeagueHelperError::new("Couldn't find summoner spells for this champion"))?
+        .to_owned();
+
+    let game_mode = &game_flow_session.map.game_mode;
+
+    dbg!(&game_mode);
+
+    if let Some(disallowed_spells) = game_mode.disallowed_summoner_spells() {
+        for spell in disallowed_spells {
+            if new_summoner_spells.first == spell {
+                new_summoner_spells.first = my_player_selection.spell1_id;
+            } else if new_summoner_spells.second == spell {
+                new_summoner_spells.second = my_player_selection.spell2_id;
+            }
+        }
+    }
 
     let new_summoner_spells = new_summoner_spells.to_my_selection(
         my_player_selection.selected_skin_id,
@@ -116,14 +142,10 @@ async fn load_champion_runes_and_summoners(
     if curr_runes_pages.len() as isize == perks_inventory.owned_page_count {
         println!("Deleting rune page so we can create another one");
 
-        //Delete previous page we created or else delete first page
-        let page_to_delete =
-            curr_runes_pages
-                .iter()
-                .find(|p| p.name.starts_with("[LH]"))
-                .unwrap_or(curr_runes_pages.first().ok_or_else(|| {
-                    LeagueHelperError::new("Couldn't find a rune page to delete")
-                })?);
+        //Delete delete first page
+        let page_to_delete = curr_runes_pages
+            .first()
+            .ok_or_else(|| LeagueHelperError::new("Couldn't find first rune page to delete"))?;
 
         lcu_driver.delete_perks_page(page_to_delete.id).await?;
     }
