@@ -24,6 +24,11 @@ async fn main() -> Result<()> {
 
     let lcu_driver = LcuDriver::connect_wait().await;
 
+    lcu_driver
+        .connect_websocket()
+        .await
+        .expect("Failed to connect WS");
+
     let builds_path = lcu_driver
         .league_install_dir()
         .await
