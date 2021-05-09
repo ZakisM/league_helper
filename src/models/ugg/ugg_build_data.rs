@@ -110,6 +110,8 @@ impl UggBuildData {
     }
 
     pub async fn save_item_builds(&self, builds_path: &Path) -> Result<()> {
+        let builds_path = builds_path.join("Champions");
+
         for (champion, builds) in &self.builds {
             for build_data in builds {
                 // Clone as don't want to modify the original data

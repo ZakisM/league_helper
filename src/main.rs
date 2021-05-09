@@ -24,16 +24,12 @@ async fn main() -> Result<()> {
 
     let lcu_driver = LcuDriver::connect_wait().await;
 
-    lcu_driver
-        .connect_websocket()
-        .await
-        .expect("Failed to connect WS");
+    // lcu_driver
+    //     .connect_websocket()
+    //     .await
+    //     .expect("Failed to connect WS");
 
-    let builds_path = lcu_driver
-        .league_install_dir()
-        .await
-        .join("Config")
-        .join("Champions");
+    let builds_path = lcu_driver.league_install_dir().await.join("Config");
 
     if !builds_path.exists() {
         return Err(LeagueHelperError::new("Builds path does not exist"));
@@ -113,8 +109,6 @@ async fn load_champion_runes_and_summoners(
 
     let game_mode = &game_flow_session.map.game_mode;
 
-    dbg!(&game_mode);
-
     if let Some(disallowed_spells) = game_mode.disallowed_summoner_spells() {
         for spell in disallowed_spells {
             if new_summoner_spells.first == spell {
@@ -130,7 +124,13 @@ async fn load_champion_runes_and_summoners(
         my_player_selection.ward_skin_id,
     );
 
-    let curr_runes_pages = lcu_driver.get_perks_pages().await?.pages;
+    let curr_runes_pages = lcu_driver
+        .get_perks_pages()
+        .await?
+        .pages
+        .into_iter()
+        .filter(|p| p.is_deletable)
+        .collect::<Vec<_>>();
 
     //Delete any [LH] pages set previously
     let pages_to_delete = curr_runes_pages

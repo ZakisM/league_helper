@@ -16,7 +16,7 @@ regex = "1"
 strum = { version = "0.20", features = ["derive"] }
 futures = "0.3"
 float-ord = "0.3"
-lcu_driver = { path = "C:/Users/zakmi/IdeaProjects/lcu_driver" }
+lcu_driver = { path = "/home/zak/Projects/lcu_driver" }
 
 [profile.dev]
 split-debuginfo = "unpacked"
