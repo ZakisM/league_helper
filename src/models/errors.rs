@@ -4,11 +4,28 @@ use std::fmt::Formatter;
 use lcu_driver::errors::LcuDriverError;
 
 use crate::convert_error;
+use crate::Result;
 
 #[derive(Eq, PartialEq)]
 pub enum LeagueHelperError {
     DriverError(LcuDriverError),
     Other(String),
+}
+
+pub trait ErrorExt<T, M>
+where
+    M: AsRef<str>,
+{
+    fn context(self, msg: M) -> Result<T>;
+}
+
+impl<T, M> ErrorExt<T, M> for Option<T>
+where
+    M: AsRef<str>,
+{
+    fn context(self, msg: M) -> Result<T> {
+        self.ok_or_else(|| LeagueHelperError::Other(msg.as_ref().to_owned()))
+    }
 }
 
 impl fmt::Display for LeagueHelperError {

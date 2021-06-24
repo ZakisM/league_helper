@@ -1,7 +1,7 @@
 use json::JsonValue;
 
 use crate::models::ddragon_runes_reforged::RunesData;
-use crate::models::errors::LeagueHelperError;
+use crate::models::errors::{ErrorExt, LeagueHelperError};
 use crate::models::ugg::item_set::ItemSet;
 use crate::models::ugg::rune_page::RunePage;
 use crate::models::ugg::summoner_spells::SummonerSpells;
@@ -17,25 +17,25 @@ impl<'a> UggRoleData<'a> {
 
         let primary_tree = data[0][0][2]
             .as_isize()
-            .ok_or_else(|| LeagueHelperError::new("Failed to read runes primary tree"))?;
+            .context("Failed to read runes primary tree")?;
 
         let secondary_tree = data[0][0][3]
             .as_isize()
-            .ok_or_else(|| LeagueHelperError::new("Failed to read runes secondary tree"))?;
+            .context("Failed to read runes secondary tree")?;
 
         let valid_primary_tree_runes = runes_data
             .runes_data
             .iter()
             .find(|r| r.id == primary_tree)
             .map(|r| &r.slots)
-            .ok_or_else(|| LeagueHelperError::new("Primary tree rune key was not valid"))?;
+            .context("Primary tree rune key was not valid")?;
 
         let valid_secondary_tree_runes = runes_data
             .runes_data
             .iter()
             .find(|r| r.id == secondary_tree)
             .map(|r| &r.slots)
-            .ok_or_else(|| LeagueHelperError::new("Secondary tree rune key was not valid"))?;
+            .context("Secondary tree rune key was not valid")?;
 
         let mut runes = data[0][0][4]
             .members()
@@ -49,7 +49,7 @@ impl<'a> UggRoleData<'a> {
             let current_index = runes
                 .iter()
                 .position(|rune| slot.runes.iter().map(|r| r.id).any(|r| &r == rune))
-                .ok_or_else(|| LeagueHelperError::new("Ugg rune is not a valid league rune"))?;
+                .context("Ugg rune is not a valid league rune")?;
 
             if current_index != i {
                 runes.swap(current_index, i);
@@ -92,11 +92,11 @@ impl<'a> UggRoleData<'a> {
         // Rune page win rate
         let games_played = data[0][0][0]
             .as_isize()
-            .ok_or_else(|| LeagueHelperError::new("Failed to read runes games played"))?;
+            .context("Failed to read runes games played")?;
 
         let games_won = data[0][0][1]
             .as_isize()
-            .ok_or_else(|| LeagueHelperError::new("Failed to read runes games won"))?;
+            .context("Failed to read runes games won")?;
 
         let win_rate = calc_win_rate(games_won as f32, games_played as f32);
 
@@ -114,16 +114,14 @@ impl<'a> UggRoleData<'a> {
         let mut sets = Vec::new();
 
         let mut add_with_win_rate = |name: &str, index: usize| -> Result<()> {
-            let games_won = data[0][index][0].as_f64().ok_or_else(|| {
-                LeagueHelperError::new(format!("Failed to read item set: {} for games_won", name))
-            })?;
+            let games_won = data[0][index][0]
+                .as_f64()
+                .context(format!("Failed to read item set: {} for games_won", name))?;
 
-            let games_played = data[0][index][1].as_f64().ok_or_else(|| {
-                LeagueHelperError::new(format!(
-                    "Failed to read item set: {} for games_played",
-                    name
-                ))
-            })?;
+            let games_played = data[0][index][1].as_f64().context(format!(
+                "Failed to read item set: {} for games_played",
+                name
+            ))?;
 
             sets.push(ItemSet {
                 name: format!(
@@ -163,7 +161,7 @@ impl<'a> UggRoleData<'a> {
 
         let skill_order = data[0][4][3]
             .as_str()
-            .ok_or_else(|| LeagueHelperError::new("Failed to read skill order"))?
+            .context("Failed to read skill order")?
             .chars()
             .map(|c| c.to_string())
             .collect::<Vec<_>>()
@@ -177,11 +175,11 @@ impl<'a> UggRoleData<'a> {
 
         let first = data[0][1][2][0]
             .as_isize()
-            .ok_or_else(|| LeagueHelperError::new("Failed to read first summoner spell"))?;
+            .context("Failed to read first summoner spell")?;
 
         let second = data[0][1][2][1]
             .as_isize()
-            .ok_or_else(|| LeagueHelperError::new("Failed to read second summoner spell"))?;
+            .context("Failed to read second summoner spell")?;
 
         Ok(SummonerSpells { first, second })
     }

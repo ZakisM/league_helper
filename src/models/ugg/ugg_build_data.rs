@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use async_recursion::async_recursion;
 use futures::stream::{self, StreamExt};
 use lcu_driver::endpoints::perks::PerksPage;
 use serde::{Deserialize, Serialize};
@@ -109,9 +110,42 @@ impl UggBuildData {
         Ok(())
     }
 
-    pub async fn save_item_builds(&self, builds_path: &Path) -> Result<()> {
-        let builds_path = builds_path.join("Champions");
+    #[async_recursion]
+    pub async fn delete_old_item_builds(
+        &self,
+        builds_path: &Path,
+        patch_versions: Option<&'async_recursion [&'async_recursion str]>,
+    ) -> Result<()> {
+        let mut dirs = tokio::fs::read_dir(&builds_path).await?;
 
+        while let Ok(entry) = dirs.next_entry().await {
+            if let Some(entry) = entry {
+                let path = entry.path();
+                if path.is_dir() {
+                    self.delete_old_item_builds(&path, patch_versions).await?;
+                } else if let Some(true) = path.file_name().and_then(|p| p.to_str()).map(|p| {
+                    if !p.starts_with("LH") {
+                        false
+                    } else if let Some(patch_versions) = patch_versions {
+                        patch_versions
+                            .iter()
+                            .any(|pv| p.ends_with(&format!("{}.json", pv)))
+                    } else {
+                        p.ends_with(".json")
+                    }
+                }) {
+                    println!("Deleting: {}", path.display());
+                    tokio::fs::remove_file(path).await?;
+                }
+            } else {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn save_item_builds(&self, builds_path: &Path) -> Result<()> {
         for (champion, builds) in &self.builds {
             for build_data in builds {
                 // Clone as don't want to modify the original data

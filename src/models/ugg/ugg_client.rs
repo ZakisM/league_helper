@@ -4,7 +4,7 @@ use reqwest::Client;
 use crate::endpoints::ugg::UggEndpoint;
 use crate::models::ddragon_champions::Champion;
 use crate::models::ddragon_runes_reforged::RunesData;
-use crate::models::errors::LeagueHelperError;
+use crate::models::errors::{ErrorExt, LeagueHelperError};
 use crate::models::ugg::build_data::BuildData;
 use crate::models::ugg::position::Position;
 use crate::models::ugg::ugg_role_data::UggRoleData;
@@ -34,24 +34,19 @@ impl UggClient {
             .text()
             .await?;
 
-        let script_re = Regex::new(r#"src="(.*?/main\..*?\.js)""#)?;
-
-        let script_url = script_re
-            .captures(&home_page)
-            .and_then(|c| c.get(1))
-            .ok_or_else(|| LeagueHelperError::new("Failed to find latest ugg script"))?
-            .as_str();
-
-        let version_re = Regex::new(r#"\[\{value:"(\d+_\d+)""#)?;
-
-        let script_page = client.get(script_url).send().await?.text().await?;
+        let version_re = Regex::new(r#"prod/versions\.json":\{"data":\["([^"]*)""#)?;
 
         let patch_version = version_re
-            .captures(&script_page)
+            .captures(&home_page)
             .and_then(|c| c.get(1))
-            .ok_or_else(|| LeagueHelperError::new("Failed to read patch version"))?
-            .as_str()
-            .to_owned();
+            .map::<Result<String>, _>(|c| {
+                let mut c = c.as_str().split('.');
+                let major = c.next().context("Failed to read UGG major version")?;
+                let minor = c.next().context("Failed to read UGG minor version")?;
+
+                Ok(format!("{}_{}", major, minor))
+            })
+            .context("Failed to read UGG patch version")??;
 
         let base_url = UggEndpoint::BaseUrl(UGGAPI_VERSION).url();
 

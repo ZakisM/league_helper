@@ -16,7 +16,8 @@ regex = "1"
 strum = { version = "0.20", features = ["derive"] }
 futures = "0.3"
 float-ord = "0.3"
-lcu_driver = { path = "/home/zak/Projects/lcu_driver" }
+async-recursion = "0.3"
+lcu_driver = { git = "https://github.com/ZakisM/lcu_driver" }
 
 [profile.dev]
 split-debuginfo = "unpacked"
