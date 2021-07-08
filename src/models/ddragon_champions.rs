@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -22,13 +23,20 @@ where
     Ok(data.into_iter().map(|(_, v)| v).collect())
 }
 
-fn string_to_u16<'de, D>(deserializer: D) -> Result<u32, D::Error>
+fn string_to_isize<'de, D>(deserializer: D) -> Result<isize, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     Ok(s.parse()
-        .expect("Failed to deserialize champion key to u16."))
+        .expect("Failed to deserialize champion key to isize."))
+}
+
+fn isize_to_string<S>(key: &isize, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::ser::Serializer,
+{
+    serializer.serialize_str(&key.to_string())
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,8 +44,9 @@ where
 pub struct Champion {
     pub version: String,
     pub id: String,
-    #[serde(deserialize_with = "string_to_u16")]
-    pub key: u32,
+    #[serde(deserialize_with = "string_to_isize")]
+    #[serde(serialize_with = "isize_to_string")]
+    pub key: isize,
     pub name: String,
     pub title: String,
     pub blurb: String,
@@ -48,7 +57,27 @@ pub struct Champion {
     pub stats: Stats,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl std::cmp::Eq for Champion {}
+
+impl std::cmp::PartialEq for Champion {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl std::cmp::Ord for Champion {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key.cmp(&other.key)
+    }
+}
+
+impl std::cmp::PartialOrd for Champion {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Info {
     pub attack: i64,
@@ -57,7 +86,7 @@ pub struct Info {
     pub difficulty: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Image {
     pub full: String,
@@ -69,7 +98,7 @@ pub struct Image {
     pub h: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Stats {
     pub hp: f64,

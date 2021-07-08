@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::models::ddragon_champions::Champion;
-use crate::models::ugg_client::{BuildData, ItemSet};
+use crate::models::ugg::build_data::BuildData;
+use crate::models::ugg::item_set::ItemSet;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,7 +36,7 @@ impl<'a> Default for LeagueItemSet<'a> {
 impl<'a> LeagueItemSet<'a> {
     pub fn from_build_data(build_data: &'a mut BuildData, champion: &'a Champion) -> Self {
         Self {
-            title: format!("[{}] - {}", build_data.position, champion.name),
+            title: format!("[LH] - {} {}", champion.name, build_data.position),
             blocks: build_data.item_sets.iter().map(Block::from).collect(),
             champion_key: &champion.id,
             ..Self::default()
@@ -87,8 +88,8 @@ pub struct Item {
     pub count: i64,
 }
 
-impl From<&usize> for Item {
-    fn from(item_id: &usize) -> Self {
+impl From<&isize> for Item {
+    fn from(item_id: &isize) -> Self {
         Self {
             id: item_id.to_string(),
             count: 1,
