@@ -120,11 +120,16 @@ async fn load_champion_runes_and_summoners(
     let game_mode = &game_flow_session.map.game_mode;
 
     if let Some(disallowed_spells) = game_mode.disallowed_summoner_spells() {
-        for spell in disallowed_spells {
-            if new_summoner_spells.first == spell {
-                new_summoner_spells.first = my_player_selection.spell1_id;
-            } else if new_summoner_spells.second == spell {
-                new_summoner_spells.second = my_player_selection.spell2_id;
+        if disallowed_spells.is_empty() {
+            new_summoner_spells.first = my_player_selection.spell1_id;
+            new_summoner_spells.second = my_player_selection.spell2_id;
+        } else {
+            for spell in disallowed_spells {
+                if new_summoner_spells.first == spell {
+                    new_summoner_spells.first = my_player_selection.spell1_id;
+                } else if new_summoner_spells.second == spell {
+                    new_summoner_spells.second = my_player_selection.spell2_id;
+                }
             }
         }
     }
