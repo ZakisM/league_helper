@@ -64,7 +64,10 @@ impl UggBuildData {
                     curr_builds.sort();
                     builds.push((champion, curr_builds));
                 }
-                Err(e) => eprintln!("{}", e),
+                Err(e) => eprintln!(
+                    "Failed to download build data for {} due to: {}",
+                    champion.name, e
+                ),
             }
         }
 
@@ -163,7 +166,7 @@ impl UggBuildData {
                     tokio::fs::create_dir_all(&build_file_path).await?;
                 }
 
-                let league_item_set = LeagueItemSet::from_build_data(&mut build_data, &champion);
+                let league_item_set = LeagueItemSet::from_build_data(&mut build_data, champion);
 
                 let league_item_set_json = serde_json::to_vec_pretty(&league_item_set)?;
 

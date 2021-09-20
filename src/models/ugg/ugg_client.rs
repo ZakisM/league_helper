@@ -14,7 +14,7 @@ const OVERVIEW_WORLD: &str = "12";
 const OVERVIEW_PLAT_PLUS: &str = "10";
 
 const UGGAPI_VERSION: &str = "1.1";
-const UGGOVERVIEW_VERSION: &str = "1.4.0";
+const UGGOVERVIEW_VERSION: &str = "1.5.0";
 
 #[derive(Debug)]
 pub struct UggClient {
@@ -116,13 +116,11 @@ impl UggClient {
     }
 
     async fn call_endpoint(&self, endpoint: &UggEndpoint<'_>) -> Result<String> {
-        let res = self
-            .client
-            .get(format!("{}{}", self.base_url, &endpoint.url()))
-            .send()
-            .await?
-            .text()
-            .await?;
+        let url = format!("{}{}", self.base_url, &endpoint.url());
+
+        println!("Making GET request to endpoint: {}", url);
+
+        let res = self.client.get(url).send().await?.text().await?;
 
         Ok(res)
     }

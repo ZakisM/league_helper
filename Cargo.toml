@@ -4,6 +4,12 @@ version = "0.1.0"
 authors = ["Zak <zakmikellides@gmail.com>"]
 edition = "2018"
 
+resolver = "2"
+
+[profile.release]
+lto = 'fat'
+codegen-units = 1
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -18,8 +24,3 @@ futures = "0.3"
 float-ord = "0.3"
 async-recursion = "0.3"
 lcu_driver = { git = "https://github.com/ZakisM/lcu_driver" }
-
-[profile.dev]
-split-debuginfo = "unpacked"
-[profile.test]
-split-debuginfo = "unpacked"
