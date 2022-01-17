@@ -212,8 +212,6 @@ impl UggBuildData {
         champion_key: isize,
         position: &Option<Position>,
     ) -> Option<PerksPage> {
-        // TODO: Delete old builds
-
         self.builds
             .iter()
             .find(|(champion, _)| champion.key == champion_key)

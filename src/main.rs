@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use lcu_driver::endpoints::champ_select::MySelection;
 use lcu_driver::endpoints::gameflow::{GameFlowPhase, GameFlowSession};
 use lcu_driver::endpoints::summoner::Summoner;
 use lcu_driver::{Initialized, LcuDriver};
@@ -112,32 +113,37 @@ async fn load_champion_runes_and_summoners(
         .get_perks_page(my_player_selection.champion_id, &position)
         .context("Couldn't find a rune page for this champion")?;
 
-    let mut new_summoner_spells = ugg_build_data
+    let ugg_summoner_spells = ugg_build_data
         .get_summoner_spells(my_player_selection.champion_id, &position)
         .context("Couldn't find summoner spells for this champion")?
         .to_owned();
 
-    let game_mode = &game_flow_session.map.game_mode;
+    // My selection is our current summoner spells/skins
+    let mut my_selection = MySelection::from(my_player_selection);
 
-    if let Some(disallowed_spells) = game_mode.disallowed_summoner_spells() {
-        if disallowed_spells.is_empty() {
-            new_summoner_spells.first = my_player_selection.spell1_id;
-            new_summoner_spells.second = my_player_selection.spell2_id;
-        } else {
-            for spell in disallowed_spells {
-                if new_summoner_spells.first == spell {
-                    new_summoner_spells.first = my_player_selection.spell1_id;
-                } else if new_summoner_spells.second == spell {
-                    new_summoner_spells.second = my_player_selection.spell2_id;
+    match game_flow_session.map.game_mode.disallowed_summoner_spells() {
+        Some(disallowed_spells) => {
+            /* If we have an empty list of disallowed_spells spells then we will
+            not modify anything as we are in an Unknown Gamemode. Otherwise
+            we can safely modify the spell if isn't in our blacklist. */
+            if !disallowed_spells.is_empty() {
+                if !disallowed_spells.contains(&ugg_summoner_spells.spell1_id) {
+                    my_selection.spell1_id = ugg_summoner_spells.spell1_id;
+                }
+
+                if !disallowed_spells.contains(&ugg_summoner_spells.spell2_id) {
+                    my_selection.spell2_id = ugg_summoner_spells.spell2_id;
                 }
             }
         }
+        None => {
+            //If we have no spells that aren't allowed then set them to the UGG spells
+            my_selection.spell1_id = ugg_summoner_spells.spell1_id;
+            my_selection.spell2_id = ugg_summoner_spells.spell2_id;
+        }
     }
 
-    let new_summoner_spells = new_summoner_spells.to_my_selection(
-        my_player_selection.selected_skin_id,
-        my_player_selection.ward_skin_id,
-    );
+    my_selection.set_flash_first();
 
     let curr_runes_pages = lcu_driver
         .get_perks_pages()
@@ -171,9 +177,7 @@ async fn load_champion_runes_and_summoners(
     }
 
     lcu_driver.set_perks_page(&new_runes_page).await?;
-    lcu_driver
-        .set_session_my_selection(&new_summoner_spells)
-        .await?;
+    lcu_driver.set_session_my_selection(&my_selection).await?;
 
     *previous_champion_id = my_player_selection.champion_id;
 
