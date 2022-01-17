@@ -181,6 +181,6 @@ impl<'a> UggRoleData<'a> {
             .as_isize()
             .context("Failed to read second summoner spell")?;
 
-        Ok(SummonerSpells { first, second })
+        Ok(SummonerSpells::new(first, second))
     }
 }

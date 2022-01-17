@@ -1,3 +1,4 @@
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use async_recursion::async_recursion;
@@ -8,6 +9,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::models::ddragon_champions::Champion;
 use crate::models::ddragon_updater::DDragonUpdater;
+use crate::models::errors::LeagueHelperError;
 use crate::models::league_item_set::LeagueItemSet;
 use crate::models::ugg::build_data::BuildData;
 use crate::models::ugg::position::Position;
@@ -64,7 +66,10 @@ impl UggBuildData {
                     curr_builds.sort();
                     builds.push((champion, curr_builds));
                 }
-                Err(e) => eprintln!("{}", e),
+                Err(e) => eprintln!(
+                    "Failed to download build data for {} due to: {}",
+                    champion.name, e
+                ),
             }
         }
 
@@ -79,11 +84,17 @@ impl UggBuildData {
     }
 
     fn json_file_path(patch_version: &str) -> PathBuf {
-        Path::new(&format!("./ugg-builds-{}.json", patch_version)).to_path_buf()
+        Path::new(&format!("./ugg-builds-{}.json.sz", patch_version)).to_path_buf()
     }
 
     pub async fn load(ddragon: &DDragonUpdater) -> Result<Self> {
-        if let Ok(data) = tokio::fs::read_to_string(Self::json_file_path(&ddragon.version)).await {
+        if let Ok(compressed_data) = tokio::fs::read(Self::json_file_path(&ddragon.version)).await {
+            let mut data = String::with_capacity(compressed_data.len());
+
+            let mut reader = snap::read::FrameDecoder::new(&*compressed_data);
+
+            reader.read_to_string(&mut data)?;
+
             println!("Loading existing data...");
 
             let ugg_data = serde_json::from_str(&data)?;
@@ -105,7 +116,15 @@ impl UggBuildData {
     pub async fn save_to_json(&self, patch_version: &str) -> Result<()> {
         let data = serde_json::to_string(&self)?;
 
-        tokio::fs::write(Self::json_file_path(patch_version), data).await?;
+        let mut compressed_writer = snap::write::FrameEncoder::new(Vec::with_capacity(data.len()));
+
+        compressed_writer.write_all(data.as_bytes())?;
+
+        let compressed_data = compressed_writer
+            .into_inner()
+            .map_err(|e| LeagueHelperError::Other(e.to_string()))?;
+
+        tokio::fs::write(Self::json_file_path(patch_version), compressed_data).await?;
 
         Ok(())
     }
@@ -163,7 +182,7 @@ impl UggBuildData {
                     tokio::fs::create_dir_all(&build_file_path).await?;
                 }
 
-                let league_item_set = LeagueItemSet::from_build_data(&mut build_data, &champion);
+                let league_item_set = LeagueItemSet::from_build_data(&mut build_data, champion);
 
                 let league_item_set_json = serde_json::to_vec_pretty(&league_item_set)?;
 
@@ -193,8 +212,6 @@ impl UggBuildData {
         champion_key: isize,
         position: &Option<Position>,
     ) -> Option<PerksPage> {
-        // TODO: Delete old builds
-
         self.builds
             .iter()
             .find(|(champion, _)| champion.key == champion_key)
