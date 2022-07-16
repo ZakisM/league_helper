@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -46,45 +47,54 @@ async fn main() -> Result<()> {
 
     let my_summoner = lcu_driver.get_current_summoner().await?;
 
+    let in_champ_select = Arc::new(AtomicBool::new(false));
+
     let mut previous_champion_id = -1;
     let mut previous_position = Position::Jungle;
     let position = Arc::new(RwLock::new(Position::Jungle));
 
     UpKey.bind({
+        let in_champ_select = in_champ_select.clone();
         let position = position.clone();
 
         move || {
-            let mut position = position.blocking_write();
-            position.previous();
+            if in_champ_select.load(Ordering::Acquire) {
+                let mut position = position.blocking_write();
+                position.previous();
 
-            println!("Position set to: {}", position);
+                println!("Position set to: {}", position);
+            }
         }
     });
 
     DownKey.bind({
+        let in_champ_select = in_champ_select.clone();
         let position = position.clone();
 
         move || {
-            let mut position = position.blocking_write();
-            position.next();
+            if in_champ_select.load(Ordering::Acquire) {
+                let mut position = position.blocking_write();
+                position.next();
 
-            println!("Position set to: {}", position);
+                println!("Position set to: {}", position);
+            }
         }
     });
 
     tokio::task::spawn_blocking(inputbot::handle_input_events);
 
     loop {
+        in_champ_select.store(false, Ordering::Release);
+
         match lcu_driver.get_gameflow_session().await {
             Ok(game_flow_session) => match &game_flow_session.phase {
-                GameFlowPhase::Lobby => {
-                    println!("In lobby...");
-                }
                 GameFlowPhase::InProgress => {
                     println!("Waiting for game to end...");
                     tokio::time::sleep(Duration::from_secs(60)).await;
                 }
                 GameFlowPhase::ChampSelect => {
+                    in_champ_select.store(true, Ordering::Release);
+
                     if let Err(e) = load_champion_runes_and_summoners(
                         &lcu_driver,
                         &game_flow_session,
@@ -132,9 +142,9 @@ async fn load_champion_runes_and_summoners(
 
     /* Must pick a champion first and
     don't set the same page twice */
-    if *position == *previous_position
-        && (my_player_selection.champion_id == 0
-            || my_player_selection.champion_id == *previous_champion_id)
+    if my_player_selection.champion_id == 0
+        || (*position == *previous_position
+            && my_player_selection.champion_id == *previous_champion_id)
     {
         return Ok(());
     }
