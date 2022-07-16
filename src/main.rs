@@ -84,11 +84,14 @@ async fn main() -> Result<()> {
     tokio::task::spawn_blocking(inputbot::handle_input_events);
 
     loop {
-        in_champ_select.store(false, Ordering::Release);
-
         match lcu_driver.get_gameflow_session().await {
             Ok(game_flow_session) => match &game_flow_session.phase {
+                GameFlowPhase::Lobby => {
+                    in_champ_select.store(false, Ordering::Release);
+                }
                 GameFlowPhase::InProgress => {
+                    in_champ_select.store(false, Ordering::Release);
+
                     println!("Waiting for game to end...");
                     tokio::time::sleep(Duration::from_secs(60)).await;
                 }
