@@ -1,10 +1,13 @@
-use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
+use inputbot::KeybdKey::{DownKey, UpKey};
 use lcu_driver::endpoints::champ_select::MySelection;
 use lcu_driver::endpoints::gameflow::{GameFlowPhase, GameFlowSession};
 use lcu_driver::endpoints::summoner::Summoner;
 use lcu_driver::{Initialized, LcuDriver};
+use tokio::sync::RwLock;
 
 use crate::models::ddragon_updater::DDragonUpdater;
 use crate::models::errors::{ErrorExt, LeagueHelperError};
@@ -38,32 +41,68 @@ async fn main() -> Result<()> {
 
     let builds_path = builds_path.join("Champions");
 
-    ugg_build_data
-        .delete_old_item_builds(&builds_path, None)
-        .await?;
-    ugg_build_data.save_item_builds(&builds_path).await?;
+    ugg_build_data.delete_old_item_builds(&builds_path)?;
+
+    ugg_build_data.save_item_builds(&builds_path)?;
 
     let my_summoner = lcu_driver.get_current_summoner().await?;
 
+    let in_champ_select = Arc::new(AtomicBool::new(false));
+
     let mut previous_champion_id = -1;
+    let mut previous_position = Position::Jungle;
+    let position = Arc::new(RwLock::new(Position::Jungle));
+
+    UpKey.bind({
+        let in_champ_select = in_champ_select.clone();
+        let position = position.clone();
+
+        move || {
+            if in_champ_select.load(Ordering::Acquire) {
+                let mut position = position.blocking_write();
+                position.previous();
+
+                println!("Position set to: {}", position);
+            }
+        }
+    });
+
+    DownKey.bind({
+        let in_champ_select = in_champ_select.clone();
+        let position = position.clone();
+
+        move || {
+            if in_champ_select.load(Ordering::Acquire) {
+                let mut position = position.blocking_write();
+                position.next();
+
+                println!("Position set to: {}", position);
+            }
+        }
+    });
+
+    tokio::task::spawn_blocking(inputbot::handle_input_events);
 
     loop {
+        in_champ_select.store(false, Ordering::Release);
+
         match lcu_driver.get_gameflow_session().await {
             Ok(game_flow_session) => match &game_flow_session.phase {
-                GameFlowPhase::Lobby => {
-                    println!("In lobby...");
-                }
                 GameFlowPhase::InProgress => {
                     println!("Waiting for game to end...");
                     tokio::time::sleep(Duration::from_secs(60)).await;
                 }
                 GameFlowPhase::ChampSelect => {
+                    in_champ_select.store(true, Ordering::Release);
+
                     if let Err(e) = load_champion_runes_and_summoners(
                         &lcu_driver,
                         &game_flow_session,
                         &ugg_build_data,
                         &my_summoner,
                         &mut previous_champion_id,
+                        &mut previous_position,
+                        position.clone(),
                     )
                     .await
                     {
@@ -88,6 +127,8 @@ async fn load_champion_runes_and_summoners(
     ugg_build_data: &UggBuildData,
     my_summoner: &Summoner,
     previous_champion_id: &mut isize,
+    previous_position: &mut Position,
+    position: Arc<RwLock<Position>>,
 ) -> Result<()> {
     let champ_select_session = lcu_driver.get_champ_select_session().await?;
 
@@ -97,17 +138,18 @@ async fn load_champion_runes_and_summoners(
         .find(|p| p.summoner_id == my_summoner.summoner_id)
         .context("Couldn't find current player selection")?;
 
+    let position = position.read().await;
+
     /* Must pick a champion first and
     don't set the same page twice */
     if my_player_selection.champion_id == 0
-        || my_player_selection.champion_id == *previous_champion_id
+        || (*position == *previous_position
+            && my_player_selection.champion_id == *previous_champion_id)
     {
         return Ok(());
     }
 
     println!("Loading runes");
-
-    let position = Position::from_str(&my_player_selection.assigned_position).ok();
 
     let new_runes_page = ugg_build_data
         .get_perks_page(my_player_selection.champion_id, &position)
@@ -180,6 +222,7 @@ async fn load_champion_runes_and_summoners(
     lcu_driver.set_session_my_selection(&my_selection).await?;
 
     *previous_champion_id = my_player_selection.champion_id;
+    *previous_position = *position;
 
     Ok(())
 }

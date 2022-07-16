@@ -65,6 +65,7 @@ convert_error!(json::Error);
 convert_error!(regex::Error);
 convert_error!(std::num::ParseIntError);
 convert_error!(std::io::Error);
+convert_error!(std::fmt::Error);
 
 #[macro_export]
 macro_rules! convert_error {
