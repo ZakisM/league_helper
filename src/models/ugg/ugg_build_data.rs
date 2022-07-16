@@ -1,11 +1,11 @@
-use std::io::{Read, Write};
+use std::fmt::Write;
+use std::fs;
+use std::io::{Read, Write as StdIOWrite};
 use std::path::{Path, PathBuf};
 
-use async_recursion::async_recursion;
 use futures::stream::{self, StreamExt};
 use lcu_driver::endpoints::perks::PerksPage;
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
 
 use crate::models::ddragon_champions::Champion;
 use crate::models::ddragon_updater::DDragonUpdater;
@@ -28,7 +28,7 @@ impl UggBuildData {
         ddragon: &DDragonUpdater,
         ugg_client: &UggClient,
     ) -> Result<UggBuildData> {
-        let required_version = ddragon.version.replace(".", "_");
+        let required_version = ddragon.version.replace('.', "_");
 
         if !required_version.starts_with(&ugg_client.patch_version) {
             println!(
@@ -129,73 +129,62 @@ impl UggBuildData {
         Ok(())
     }
 
-    #[async_recursion]
-    pub async fn delete_old_item_builds(
-        &self,
-        builds_path: &Path,
-        patch_versions: Option<&'async_recursion [&'async_recursion str]>,
-    ) -> Result<()> {
-        let mut dirs = tokio::fs::read_dir(&builds_path).await?;
+    pub fn delete_old_item_builds(&self, builds_path: &Path) -> Result<()> {
+        for entry in fs::read_dir(&builds_path)? {
+            let entry = entry?;
 
-        while let Ok(entry) = dirs.next_entry().await {
-            if let Some(entry) = entry {
+            if entry.file_type()?.is_dir() {
+                self.delete_old_item_builds(&entry.path())?;
+            } else if let Some(true) = entry
+                .file_name()
+                .to_str()
+                .map(|f| f.starts_with("LH_") && f.ends_with(".json"))
+            {
                 let path = entry.path();
-                if path.is_dir() {
-                    self.delete_old_item_builds(&path, patch_versions).await?;
-                } else if let Some(true) = path.file_name().and_then(|p| p.to_str()).map(|p| {
-                    if !p.starts_with("LH") {
-                        false
-                    } else if let Some(patch_versions) = patch_versions {
-                        patch_versions
-                            .iter()
-                            .any(|pv| p.ends_with(&format!("{}.json", pv)))
-                    } else {
-                        p.ends_with(".json")
-                    }
-                }) {
-                    println!("Deleting: {}", path.display());
-                    tokio::fs::remove_file(path).await?;
-                }
-            } else {
-                break;
+
+                println!("Deleting: {}", path.display());
+
+                fs::remove_file(path)?;
             }
         }
 
         Ok(())
     }
 
-    pub async fn save_item_builds(&self, builds_path: &Path) -> Result<()> {
+    pub fn save_item_builds(&self, builds_path: &Path) -> Result<()> {
         for (champion, builds) in &self.builds {
             for build_data in builds {
                 // Clone as don't want to modify the original data
                 let mut build_data = build_data.clone();
 
                 if let Some(starting_build) = build_data.item_sets.get_mut(0) {
-                    starting_build
-                        .name
-                        .push_str(&format!(" [Skill Order: {}]", build_data.skill_order));
+                    write!(
+                        starting_build.name,
+                        " [Skill Order: {}]",
+                        build_data.skill_order
+                    )?;
                 }
 
                 let build_file_path = builds_path.join(&champion.id).join("Recommended");
 
                 if !build_file_path.exists() {
-                    tokio::fs::create_dir_all(&build_file_path).await?;
+                    fs::create_dir_all(&build_file_path)?;
                 }
 
                 let league_item_set = LeagueItemSet::from_build_data(&mut build_data, champion);
 
                 let league_item_set_json = serde_json::to_vec_pretty(&league_item_set)?;
 
-                let mut build_file = tokio::fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .open(build_file_path.join(format!(
-                        "LH_{}-{}-{}.json",
-                        &champion.id, &build_data.position, self.patch_version
-                    )))
-                    .await?;
+                let mut build_file =
+                    fs::OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .open(build_file_path.join(format!(
+                            "LH_{}-{}-{}.json",
+                            &champion.id, &build_data.position, self.patch_version
+                        )))?;
 
-                build_file.write_all(&league_item_set_json).await?;
+                build_file.write_all(&league_item_set_json)?;
 
                 println!(
                     "Saved build for: {} {}.",
@@ -207,20 +196,12 @@ impl UggBuildData {
         Ok(())
     }
 
-    pub fn get_perks_page(
-        &self,
-        champion_key: isize,
-        position: &Option<Position>,
-    ) -> Option<PerksPage> {
+    pub fn get_perks_page(&self, champion_key: isize, position: &Position) -> Option<PerksPage> {
         self.builds
             .iter()
             .find(|(champion, _)| champion.key == champion_key)
             .and_then(|(champion, build_data)| {
-                let build_data = if let Some(position) = position {
-                    build_data.iter().find(|b| b.position == *position)
-                } else {
-                    build_data.first()
-                };
+                let build_data = build_data.iter().find(|b| b.position == *position);
 
                 build_data.map(|b| PerksPage {
                     name: format!("[LH] {} {}", champion.name, b.position),
@@ -235,17 +216,13 @@ impl UggBuildData {
     pub fn get_summoner_spells(
         &self,
         champion_key: isize,
-        position: &Option<Position>,
+        position: &Position,
     ) -> Option<&SummonerSpells> {
         self.builds
             .iter()
             .find(|(champion, _)| champion.key == champion_key)
             .and_then(|(_, build_data)| {
-                let build_data = if let Some(position) = position {
-                    build_data.iter().find(|b| b.position == *position)
-                } else {
-                    build_data.first()
-                };
+                let build_data = build_data.iter().find(|b| b.position == *position);
 
                 build_data.map(|b| &b.summoner_spells)
             })

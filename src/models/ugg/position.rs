@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(
-    Clone, Debug, strum::Display, strum::EnumString, Eq, PartialEq, Serialize, Deserialize,
+    Clone, Copy, Debug, strum::Display, strum::EnumString, Eq, PartialEq, Serialize, Deserialize,
 )]
 pub enum Position {
     Unknown = 0,
@@ -21,6 +21,24 @@ impl From<isize> for Position {
             x if x == Position::Top as isize => Position::Top,
             x if x == Position::Mid as isize => Position::Mid,
             _ => Position::Unknown,
+        }
+    }
+}
+
+impl Position {
+    pub fn next(&mut self) {
+        let curr = *self as isize;
+
+        if curr < 5 {
+            *self = Position::from(curr + 1);
+        }
+    }
+
+    pub fn previous(&mut self) {
+        let curr = *self as isize;
+
+        if curr > 1 {
+            *self = Position::from(curr - 1);
         }
     }
 }
