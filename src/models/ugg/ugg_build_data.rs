@@ -1,6 +1,6 @@
 use std::fmt::Write;
 use std::fs;
-use std::io::{Read, Write as StdIOWrite};
+use std::io::Write as StdIOWrite;
 use std::path::{Path, PathBuf};
 
 use futures::stream::{self, StreamExt};
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::models::ddragon_champions::Champion;
 use crate::models::ddragon_updater::DDragonUpdater;
 use crate::models::errors::LeagueHelperError;
+use crate::models::file_info::FileInfo;
 use crate::models::league_item_set::LeagueItemSet;
 use crate::models::ugg::build_data::BuildData;
 use crate::models::ugg::position::Position;
@@ -87,29 +88,41 @@ impl UggBuildData {
         Path::new(&format!("./ugg-builds-{}.json.sz", patch_version)).to_path_buf()
     }
 
+    async fn load_current_file_info(ddragon: &DDragonUpdater) -> Result<FileInfo> {
+        let file_info = FileInfo::read(Self::json_file_path(&ddragon.version)).await?;
+
+        // Enforces our data is at most 2 days old
+        if file_info.metadata.modified()?.elapsed()?.as_secs() >= (2 * 86400) {
+            return Err(LeagueHelperError::new("UGG Data is more than 2 days old."));
+        }
+
+        Ok(file_info)
+    }
+
     pub async fn load(ddragon: &DDragonUpdater) -> Result<Self> {
-        if let Ok(compressed_data) = tokio::fs::read(Self::json_file_path(&ddragon.version)).await {
-            let mut data = String::with_capacity(compressed_data.len());
+        match Self::load_current_file_info(ddragon).await {
+            Ok(file) => {
+                let mut reader = snap::read::FrameDecoder::new(&*file.data);
 
-            let mut reader = snap::read::FrameDecoder::new(&*compressed_data);
+                println!("Loading existing data...");
 
-            reader.read_to_string(&mut data)?;
+                let ugg_data = serde_json::from_reader(&mut reader)?;
 
-            println!("Loading existing data...");
+                Ok(ugg_data)
+            }
+            Err(e) => {
+                eprintln!("{e}");
 
-            let ugg_data = serde_json::from_str(&data)?;
+                println!("Loading data from UGG...");
 
-            Ok(ugg_data)
-        } else {
-            println!("No existing data found...");
+                let ugg_client = UggClient::new().await?;
 
-            let ugg_client = UggClient::new().await?;
+                let data = Self::get_ugg_build_data(ddragon, &ugg_client).await?;
 
-            let data = Self::get_ugg_build_data(ddragon, &ugg_client).await?;
+                data.save_to_json(&ddragon.version).await?;
 
-            data.save_to_json(&ddragon.version).await?;
-
-            Ok(data)
+                Ok(data)
+            }
         }
     }
 
