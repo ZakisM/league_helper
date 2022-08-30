@@ -66,6 +66,7 @@ convert_error!(regex::Error);
 convert_error!(std::num::ParseIntError);
 convert_error!(std::io::Error);
 convert_error!(std::fmt::Error);
+convert_error!(std::time::SystemTimeError);
 
 #[macro_export]
 macro_rules! convert_error {

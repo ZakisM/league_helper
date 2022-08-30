@@ -19,3 +19,6 @@ float-ord = "0.3"
 lcu_driver = { git = "https://github.com/ZakisM/lcu_driver" }
 snap = "1.0"
 inputbot = "0.5.1"
+
+[profile.release]
+lto = "thin"
