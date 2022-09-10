@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
                 GameFlowPhase::InProgress => {
                     in_champ_select.store(false, Ordering::Release);
 
-                    println!("Waiting for game to end...");
+                    println!("Waiting for game to end...\r");
                     tokio::time::sleep(Duration::from_secs(30)).await;
                 }
                 GameFlowPhase::ChampSelect => {
