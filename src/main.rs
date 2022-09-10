@@ -60,9 +60,10 @@ async fn main() -> Result<()> {
         move || {
             if in_champ_select.load(Ordering::Acquire) {
                 let mut position = position.blocking_write();
-                position.previous();
 
-                println!("Position set to: {}", position);
+                if position.previous() {
+                    println!("Position set to: {}", position);
+                }
             }
         }
     });
@@ -74,9 +75,10 @@ async fn main() -> Result<()> {
         move || {
             if in_champ_select.load(Ordering::Acquire) {
                 let mut position = position.blocking_write();
-                position.next();
 
-                println!("Position set to: {}", position);
+                if position.next() {
+                    println!("Position set to: {}", position);
+                }
             }
         }
     });
@@ -115,7 +117,7 @@ async fn main() -> Result<()> {
                 _ => (),
             },
             Err(e) => {
-                eprintln!("{}", e);
+                eprintln!("Failed to get gameflow session: {}", e);
                 previous_champion_id = -1;
             }
         }

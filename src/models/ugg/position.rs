@@ -26,19 +26,25 @@ impl From<isize> for Position {
 }
 
 impl Position {
-    pub fn next(&mut self) {
+    pub fn next(&mut self) -> bool {
         let curr = *self as isize;
 
         if curr < 5 {
             *self = Position::from(curr + 1);
+            return true;
         }
+
+        false
     }
 
-    pub fn previous(&mut self) {
+    pub fn previous(&mut self) -> bool {
         let curr = *self as isize;
 
         if curr > 1 {
             *self = Position::from(curr - 1);
+            return true;
         }
+
+        false
     }
 }
