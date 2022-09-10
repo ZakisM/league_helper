@@ -551,7 +551,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 [[package]]
 name = "lcu_driver"
 version = "0.1.0"
-source = "git+https://github.com/ZakisM/lcu_driver#e4c5aa7ec0984ce4949e245cb625307581889c04"
+source = "git+https://github.com/ZakisM/lcu_driver#8779323f3a614afb9faed8edb049b54c3b1ca71e"
 dependencies = [
  "base64",
  "http",
