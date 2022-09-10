@@ -1,3 +1,4 @@
+use std::io::{stdout, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -94,7 +95,9 @@ async fn main() -> Result<()> {
                 GameFlowPhase::InProgress => {
                     in_champ_select.store(false, Ordering::Release);
 
-                    println!("Waiting for game to end...\r");
+                    print!("\rWaiting for game to end...");
+                    stdout().flush()?;
+
                     tokio::time::sleep(Duration::from_secs(30)).await;
                 }
                 GameFlowPhase::ChampSelect => {
