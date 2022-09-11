@@ -120,7 +120,9 @@ async fn main() -> Result<()> {
                 _ => (),
             },
             Err(e) => {
-                eprintln!("Failed to get gameflow session: {}", e);
+                print!("\rFailed to get gameflow session: {}", e);
+                stdout().flush()?;
+
                 previous_champion_id = -1;
             }
         }
