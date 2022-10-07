@@ -77,7 +77,7 @@ impl std::cmp::PartialOrd for Champion {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Info {
     pub attack: i64,
@@ -86,7 +86,7 @@ pub struct Info {
     pub difficulty: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Image {
     pub full: String,
