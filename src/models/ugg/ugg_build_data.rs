@@ -3,7 +3,7 @@ use std::fs;
 use std::io::Write as StdIOWrite;
 use std::path::{Path, PathBuf};
 
-use futures::stream::{self, StreamExt};
+use deluge::DelugeExt;
 use lcu_driver::endpoints::perks::PerksPage;
 use serde::{Deserialize, Serialize};
 
@@ -43,14 +43,15 @@ impl UggBuildData {
 
         let mut builds = Vec::with_capacity(champion_data.champion_list.len());
 
-        let mut download_job = stream::iter(champion_data.champion_list)
+        let download_job = deluge::iter(champion_data.champion_list)
             .map(|champion| async {
                 let build_data = ugg_client.get_champion_data(&champion, &runes_data).await;
                 (champion, build_data)
             })
-            .buffer_unordered(5);
+            .collect_par::<Vec<_>>(None, None)
+            .await;
 
-        while let Some((champion, build_data)) = download_job.next().await {
+        for (champion, build_data) in download_job.into_iter() {
             match build_data {
                 Ok(build_data) => {
                     let mut curr_builds = Vec::with_capacity(5);
@@ -143,7 +144,7 @@ impl UggBuildData {
     }
 
     pub fn delete_old_item_builds(&self, builds_path: &Path) -> Result<()> {
-        for entry in fs::read_dir(&builds_path)? {
+        for entry in fs::read_dir(builds_path)? {
             let entry = entry?;
 
             if entry.file_type()?.is_dir() {
