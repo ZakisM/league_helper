@@ -1,4 +1,3 @@
-use std::io::{stdout, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -95,8 +94,7 @@ async fn main() -> Result<()> {
                 GameFlowPhase::InProgress => {
                     in_champ_select.store(false, Ordering::Release);
 
-                    print!("\rWaiting for game to end...");
-                    stdout().flush()?;
+                    println!("Waiting for game to end...");
 
                     tokio::time::sleep(Duration::from_secs(30)).await;
                 }
@@ -120,8 +118,7 @@ async fn main() -> Result<()> {
                 _ => (),
             },
             Err(e) => {
-                print!("\rFailed to get gameflow session: {}", e);
-                stdout().flush()?;
+                println!("Failed to get gameflow session: {}", e);
 
                 previous_champion_id = -1;
             }
