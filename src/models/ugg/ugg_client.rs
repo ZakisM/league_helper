@@ -13,7 +13,7 @@ use crate::Result;
 const OVERVIEW_WORLD: &str = "12";
 const OVERVIEW_PLAT_PLUS: &str = "10";
 
-const UGGAPI_VERSION: &str = "1.1";
+const UGGAPI_VERSION: &str = "1.5";
 const UGGOVERVIEW_VERSION: &str = "1.5.0";
 
 #[derive(Debug)]
