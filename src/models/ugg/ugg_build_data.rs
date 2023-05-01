@@ -3,20 +3,19 @@ use std::fs;
 use std::io::Write as StdIOWrite;
 use std::path::{Path, PathBuf};
 
-use deluge::DelugeExt;
+use app_error::{bail, AppError, Result};
+use deluge::{DelugeExt, IntoDeluge};
 use lcu_driver::endpoints::perks::PerksPage;
 use serde::{Deserialize, Serialize};
 
 use crate::models::ddragon_champions::Champion;
 use crate::models::ddragon_updater::DDragonUpdater;
-use crate::models::errors::LeagueHelperError;
 use crate::models::file_info::FileInfo;
 use crate::models::league_item_set::LeagueItemSet;
 use crate::models::ugg::build_data::BuildData;
 use crate::models::ugg::position::Position;
 use crate::models::ugg::summoner_spells::SummonerSpells;
 use crate::models::ugg::ugg_client::UggClient;
-use crate::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UggBuildData {
@@ -43,7 +42,9 @@ impl UggBuildData {
 
         let mut builds = Vec::with_capacity(champion_data.champion_list.len());
 
-        let download_job = deluge::iter(champion_data.champion_list)
+        let download_job = champion_data
+            .champion_list
+            .into_deluge()
             .map(|champion| async {
                 let build_data = ugg_client.get_champion_data(&champion, &runes_data).await;
                 (champion, build_data)
@@ -94,7 +95,7 @@ impl UggBuildData {
 
         // Enforces our data is at most 2 days old
         if file_info.metadata.modified()?.elapsed()?.as_secs() >= (2 * 86400) {
-            return Err(LeagueHelperError::new("UGG Data is more than 2 days old."));
+            bail!("UGG Data is more than 2 days old.");
         }
 
         Ok(file_info)
@@ -136,7 +137,7 @@ impl UggBuildData {
 
         let compressed_data = compressed_writer
             .into_inner()
-            .map_err(|e| LeagueHelperError::Other(e.to_string()))?;
+            .map_err(|e| AppError::new(e.to_string()))?;
 
         tokio::fs::write(Self::json_file_path(patch_version), compressed_data).await?;
 

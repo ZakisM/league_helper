@@ -20,7 +20,7 @@ where
 {
     let data: HashMap<String, Champion> = HashMap::deserialize(deserializer)?;
 
-    Ok(data.into_iter().map(|(_, v)| v).collect())
+    Ok(data.into_values().collect())
 }
 
 fn string_to_isize<'de, D>(deserializer: D) -> Result<isize, D::Error>

@@ -1,12 +1,11 @@
+use app_error::{bail, AppErrorExt, Result};
 use json::JsonValue;
 
 use crate::models::ddragon_runes_reforged::RunesData;
-use crate::models::errors::{ErrorExt, LeagueHelperError};
 use crate::models::ugg::item_set::ItemSet;
 use crate::models::ugg::rune_page::RunePage;
 use crate::models::ugg::summoner_spells::SummonerSpells;
 use crate::util::calc_win_rate;
-use crate::Result;
 
 #[derive(Debug)]
 pub struct UggRoleData<'a>(pub &'a JsonValue);
@@ -84,9 +83,7 @@ impl<'a> UggRoleData<'a> {
         runes.append(&mut stat_shards);
 
         if runes.len() != 9 {
-            return Err(LeagueHelperError::new(
-                "Could not find a complete rune page",
-            ));
+            bail!("Could not find a complete rune page");
         }
 
         // Rune page win rate

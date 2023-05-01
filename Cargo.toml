@@ -18,8 +18,10 @@ futures = "0.3"
 float-ord = "0.3"
 lcu_driver = { git = "https://github.com/ZakisM/lcu_driver" }
 snap = "1.0"
-deluge = "0.1.9"
-inputbot = "0.5.1"
+deluge = { git = "https://github.com/ZakisM/deluge" }
+rdev = "0.5.2"
+app_error = { git = "https://github.com/ZakisM/app_error" }
 
 [profile.release]
 lto = "thin"
+strip = true

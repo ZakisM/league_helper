@@ -1,14 +1,13 @@
+use app_error::{bail, AppError, AppErrorExt, Result};
 use regex::Regex;
 use reqwest::Client;
 
 use crate::endpoints::ugg::UggEndpoint;
 use crate::models::ddragon_champions::Champion;
 use crate::models::ddragon_runes_reforged::RunesData;
-use crate::models::errors::{ErrorExt, LeagueHelperError};
 use crate::models::ugg::build_data::BuildData;
 use crate::models::ugg::position::Position;
 use crate::models::ugg::ugg_role_data::UggRoleData;
-use crate::Result;
 
 const OVERVIEW_WORLD: &str = "12";
 const OVERVIEW_PLAT_PLUS: &str = "10";
@@ -74,8 +73,8 @@ impl UggClient {
 
         let data = &data[OVERVIEW_WORLD][OVERVIEW_PLAT_PLUS];
 
-        let format_error = |champion_name: &str, position: &Position, e| -> LeagueHelperError {
-            LeagueHelperError::new(format!("{} {} - {}", champion_name, position, e))
+        let format_error = |champion_name: &str, position: &Position, e| -> AppError {
+            AppError::new(format!("{} {} - {}", champion_name, position, e))
         };
 
         let build_data = data
@@ -109,7 +108,7 @@ impl UggClient {
             .collect::<Vec<_>>();
 
         if build_data.is_empty() {
-            Err(LeagueHelperError::new("No build data found."))
+            bail!("No build data found.");
         } else {
             Ok(build_data)
         }

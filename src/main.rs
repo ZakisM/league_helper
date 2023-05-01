@@ -1,8 +1,9 @@
+use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use inputbot::KeybdKey::{DownKey, UpKey};
+use app_error::{bail, AppErrorExt, Result};
 use lcu_driver::endpoints::champ_select::MySelection;
 use lcu_driver::endpoints::gameflow::{GameFlowPhase, GameFlowSession};
 use lcu_driver::endpoints::summoner::Summoner;
@@ -10,15 +11,12 @@ use lcu_driver::{Initialized, LcuDriver};
 use tokio::sync::RwLock;
 
 use crate::models::ddragon_updater::DDragonUpdater;
-use crate::models::errors::{ErrorExt, LeagueHelperError};
 use crate::models::ugg::position::Position;
 use crate::models::ugg::ugg_build_data::UggBuildData;
 
 mod endpoints;
 mod models;
 mod util;
-
-type Result<T> = std::result::Result<T, LeagueHelperError>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,14 +34,22 @@ async fn main() -> Result<()> {
     let builds_path = lcu_driver.league_install_dir().await.join("Config");
 
     if !builds_path.exists() {
-        return Err(LeagueHelperError::new("Builds path does not exist"));
+        bail!("builds path does not exist");
     }
 
     let builds_path = builds_path.join("Champions");
 
-    ugg_build_data.delete_old_item_builds(&builds_path)?;
+    if !builds_path.exists() {
+        fs::create_dir(&builds_path).context("failed ot create 'Champions' builds path")?;
+    }
 
-    ugg_build_data.save_item_builds(&builds_path)?;
+    ugg_build_data
+        .delete_old_item_builds(&builds_path)
+        .context("failed to delete old item builds")?;
+
+    ugg_build_data
+        .save_item_builds(&builds_path)
+        .context("failed to save item builds")?;
 
     let my_summoner = lcu_driver.get_current_summoner().await?;
 
@@ -53,37 +59,36 @@ async fn main() -> Result<()> {
     let mut previous_position = Position::Jungle;
     let position = Arc::new(RwLock::new(Position::Jungle));
 
-    UpKey.bind({
-        let in_champ_select = in_champ_select.clone();
-        let position = position.clone();
+    let in_champ_select_clone = in_champ_select.clone();
+    let position_clone = position.clone();
 
-        move || {
-            if in_champ_select.load(Ordering::Acquire) {
-                let mut position = position.blocking_write();
+    tokio::task::spawn_blocking(|| {
+        if let Err(e) = rdev::listen(move |event| {
+            if in_champ_select_clone.load(Ordering::Acquire) {
+                if let rdev::EventType::KeyPress(key) = event.event_type {
+                    match key {
+                        rdev::Key::UpArrow => {
+                            let mut position = position_clone.blocking_write();
 
-                if position.previous() {
-                    println!("Position set to: {}", position);
-                }
+                            if position.previous() {
+                                println!("Position set to: {}", position);
+                            }
+                        }
+                        rdev::Key::DownArrow => {
+                            let mut position = position_clone.blocking_write();
+
+                            if position.next() {
+                                println!("Position set to: {}", position);
+                            }
+                        }
+                        _ => (),
+                    }
+                };
             }
+        }) {
+            eprintln!("rdev listen error: {:?}", e);
         }
     });
-
-    DownKey.bind({
-        let in_champ_select = in_champ_select.clone();
-        let position = position.clone();
-
-        move || {
-            if in_champ_select.load(Ordering::Acquire) {
-                let mut position = position.blocking_write();
-
-                if position.next() {
-                    println!("Position set to: {}", position);
-                }
-            }
-        }
-    });
-
-    tokio::task::spawn_blocking(inputbot::handle_input_events);
 
     loop {
         match lcu_driver.get_gameflow_session().await {
