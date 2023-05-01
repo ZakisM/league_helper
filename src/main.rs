@@ -62,8 +62,6 @@ async fn main() -> Result<()> {
     let in_champ_select_clone = in_champ_select.clone();
     let position_clone = position.clone();
 
-    let name = "Zakis";
-
     tokio::task::spawn_blocking(|| {
         if let Err(e) = rdev::listen(move |event| {
             if let rdev::EventType::KeyPress(key) = event.event_type {
@@ -85,7 +83,7 @@ async fn main() -> Result<()> {
                         }
                         _ => (),
                     }
-                };
+                }
             }
         }) {
             eprintln!("rdev listen error: {:?}", e);
