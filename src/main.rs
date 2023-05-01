@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     let builds_path = builds_path.join("Champions");
 
     if !builds_path.exists() {
-        fs::create_dir(&builds_path).context("failed ot create 'Champions' builds path")?;
+        fs::create_dir(&builds_path).context("failed to create 'Champions' builds path")?;
     }
 
     ugg_build_data
@@ -64,8 +64,8 @@ async fn main() -> Result<()> {
 
     tokio::task::spawn_blocking(|| {
         if let Err(e) = rdev::listen(move |event| {
-            if in_champ_select_clone.load(Ordering::Acquire) {
-                if let rdev::EventType::KeyPress(key) = event.event_type {
+            if let rdev::EventType::KeyPress(key) = event.event_type {
+                if in_champ_select_clone.load(Ordering::Acquire) {
                     match key {
                         rdev::Key::UpArrow => {
                             let mut position = position_clone.blocking_write();
