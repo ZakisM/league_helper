@@ -144,12 +144,12 @@ impl UggBuildData {
         Ok(())
     }
 
-    pub fn delete_old_item_builds(&self, builds_path: &Path) -> Result<()> {
+    pub fn delete_old_item_builds(builds_path: &Path) -> Result<()> {
         for entry in fs::read_dir(builds_path)? {
             let entry = entry?;
 
             if entry.file_type()?.is_dir() {
-                self.delete_old_item_builds(&entry.path())?;
+                UggBuildData::delete_old_item_builds(&entry.path())?;
             } else if let Some(true) = entry
                 .file_name()
                 .to_str()

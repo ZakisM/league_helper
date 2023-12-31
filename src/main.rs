@@ -43,8 +43,7 @@ async fn main() -> Result<()> {
         fs::create_dir(&builds_path).context("failed to create 'Champions' builds path")?;
     }
 
-    ugg_build_data
-        .delete_old_item_builds(&builds_path)
+    UggBuildData::delete_old_item_builds(&builds_path)
         .context("failed to delete old item builds")?;
 
     ugg_build_data
