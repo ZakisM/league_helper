@@ -18,7 +18,7 @@ futures = "0.3"
 float-ord = "0.3"
 lcu_driver = { git = "https://github.com/ZakisM/lcu_driver" }
 snap = "1.0"
-deluge = { git = "https://github.com/ZakisM/deluge" }
+deluge = "0.2.1"
 rdev = "0.5.2"
 app_error = { git = "https://github.com/ZakisM/app_error" }
 

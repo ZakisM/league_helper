@@ -24,7 +24,7 @@ impl DDragonUpdater {
             .await?;
 
         let version = serde_json::from_str::<Vec<String>>(&res)?
-            .get(0)
+            .first()
             .expect("Missing version data from DDragon.")
             .to_string();
 
