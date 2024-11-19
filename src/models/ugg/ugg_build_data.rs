@@ -4,7 +4,7 @@ use std::io::Write as StdIOWrite;
 use std::path::{Path, PathBuf};
 
 use app_error::{bail, AppError, Result};
-use deluge::{DelugeExt, IntoDeluge};
+use futures::{stream, StreamExt};
 use lcu_driver::endpoints::perks::PerksPage;
 use serde::{Deserialize, Serialize};
 
@@ -42,17 +42,15 @@ impl UggBuildData {
 
         let mut builds = Vec::with_capacity(champion_data.champion_list.len());
 
-        let download_job = champion_data
-            .champion_list
-            .into_deluge()
+        let mut download_job = stream::iter(champion_data.champion_list)
             .map(|champion| async {
                 let build_data = ugg_client.get_champion_data(&champion, &runes_data).await;
+
                 (champion, build_data)
             })
-            .collect_par::<Vec<_>>(None, None)
-            .await;
+            .buffer_unordered(1 << 8); // 256
 
-        for (champion, build_data) in download_job.into_iter() {
+        while let Some((champion, build_data)) = download_job.next().await {
             match build_data {
                 Ok(build_data) => {
                     let mut curr_builds = Vec::with_capacity(5);
@@ -190,14 +188,14 @@ impl UggBuildData {
 
                 let league_item_set_json = serde_json::to_vec_pretty(&league_item_set)?;
 
-                let mut build_file =
-                    fs::OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .open(build_file_path.join(format!(
-                            "LH_{}-{}-{}.json",
-                            &champion.id, &build_data.position, self.patch_version
-                        )))?;
+                let mut build_file = fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(build_file_path.join(format!(
+                        "LH_{}-{}-{}.json",
+                        &champion.id, &build_data.position, self.patch_version
+                    )))?;
 
                 build_file.write_all(&league_item_set_json)?;
 

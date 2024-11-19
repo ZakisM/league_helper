@@ -17,7 +17,7 @@ impl DDragonUpdater {
         let client = Client::new();
 
         let res = client
-            .get(&DDragonEndpoint::Version.url())
+            .get(DDragonEndpoint::Version.url())
             .send()
             .await?
             .text()
@@ -55,13 +55,7 @@ impl DDragonUpdater {
         &self,
         endpoint: &DDragonEndpoint<'_>,
     ) -> Result<T> {
-        let res = self
-            .client
-            .get(&endpoint.url())
-            .send()
-            .await?
-            .text()
-            .await?;
+        let res = self.client.get(endpoint.url()).send().await?.text().await?;
 
         Ok(serde_json::from_str::<T>(&res)?)
     }
