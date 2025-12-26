@@ -1,5 +1,6 @@
 use app_error::{bail, AppError, AppErrorExt, Result};
 use regex::Regex;
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, ACCEPT_LANGUAGE, USER_AGENT};
 use reqwest::Client;
 
 use crate::endpoints::ugg::UggEndpoint;
@@ -24,7 +25,13 @@ pub struct UggClient {
 
 impl UggClient {
     pub async fn new() -> Result<Self> {
-        let client = Client::new();
+        let headers = HeaderMap::from_iter([
+            (USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")),
+            (ACCEPT, HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")),
+            (ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5")),
+        ]);
+
+        let client = Client::builder().default_headers(headers).build()?;
 
         let home_page = client
             .get(UggEndpoint::HomePage.url())
@@ -33,19 +40,31 @@ impl UggClient {
             .text()
             .await?;
 
-        let version_re = Regex::new(r#"prod/versions\.json":\{"data":\["([^"]*)""#)?;
+        let version_re = Regex::new(r#"window\.__SSR_DATA__ = (\{.*})"#)?;
 
-        let patch_version = version_re
+        let data_captures = version_re
             .captures(&home_page)
             .and_then(|c| c.get(1))
-            .map::<Result<String>, _>(|c| {
-                let mut c = c.as_str().split('.');
-                let major = c.next().context("Failed to read UGG major version")?;
-                let minor = c.next().context("Failed to read UGG minor version")?;
+            .map(|c| c.as_str())
+            .context("Failed to find captures in version.json")?;
 
-                Ok(format!("{}_{}", major, minor))
-            })
-            .context("Failed to read UGG patch version")??;
+        let data_json: serde_json::Value = serde_json::from_str(data_captures)?;
+
+        let mut first_patch_version = data_json
+            .get("https://static.bigbrain.gg/assets/lol/riot_patch_update/prod/versions.json")
+            .and_then(|d| d.get("data"))
+            .and_then(|d| d.as_array()?.first()?.as_str())
+            .map(|d| d.split_terminator('.'))
+            .context("Failed to get patch version data")?;
+
+        let major_version = first_patch_version
+            .next()
+            .context("Failed to get patch major version")?;
+        let minor_version = first_patch_version
+            .next()
+            .context("Failed to get patch minor version")?;
+
+        let patch_version = format!("{}_{}", major_version, minor_version);
 
         let base_url = UggEndpoint::BaseUrl(UGGAPI_VERSION).url();
 
